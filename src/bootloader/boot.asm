@@ -83,14 +83,158 @@ main:
 	mov ss, ax
 	mov sp, 0x7C00			; stack grows downards, hence we are are pointing to the start of the OS, so that it doesn't overwrite the OS	
 
+
+	; read something from floppy disk
+	; BIOS should set DL to drive number
+	mov [ebr_drive_number], dl
+	mov ax, 1 					; LBA = 1, second sector from disk
+	mov cl, 1 					; 1 sector to read
+	mov bx, 0x7E00 				; data should be after the bootloader
+	call disk_read
+
+
 	mov si, msg_hello
 	call puts
 	
 	hlt
+
+
+;
+; Error handlers
+;
+floppy_error:
+	mov si, msg_read_failed
+	call puts
+	jmp wait_key_and_reboot
+	hlt
+
+
+
+wait_key_and_reboot:
+	mov ah, 0
+	int 16h						; wait for keypress
+	jmp 0FFFh:0 				; jumps to beginning of BIOS, should reboot
+
+
+
 .halt:
-	jmp .halt
+	cli 						; disable interrupts, this way we can't get out of halt state
+	hlt
+
+;
+; Disk routines
+;
+
+;
+; Converts an LBA to a CHS address
+; Parameters:
+;	- ax: LBA address
+; Returns:
+;	- cx [bits 0-5]: sector number
+;	- cx [bits 6-15]: cylinder
+;	- dh: head
+;
+lba_to_chs:
+	xor dx, dx;								; dx = 0
+	div word [bdb_sectors_per_track]		; ax = LBA / SectorsPerTrack
+											; dx = LBA % SectorsPerTrack
+	inc dx									; dx = (LBA % SectorsPerTrack + 1) = sector
+	mov cx, dx								; cx = sector
+
+	xor dx, dx;								; dx = 0
+	div word [bdb_heads]					; ax = (LBA / SectorsPerTrack) / Heads = cylinder
+											; dx = (LBA / SectorsPerTrack) % Heads = head
+	mov dh, dl								; dh = head
+	mov ch, al 								; ch = cylinder (lower 8 bits)
+	shl ah, 6
+	or cl, ah								; pur upper 2 bits of cylinder in CL
+
+	pop ax
+	mov dl, al
+	pop ax
+	ret
+
+
+
+;
+; Reads sectors from a disk
+; Uses BIOS interrup 0x13
+; Parameters:
+; 	-ax: LBA address
+;   -cl: number of sectosr to read (up to 128)
+; 	-dl: drive number
+;   -es:bx: memory address where to store read data
+
+disk_read:
+	; save all registers we will modify
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+	
+	; saves current value of cx (sector) to the stack. This is done to preserver the cx value before the call to lba_to_cha
+	push cx
+	call lba_to_chs
+	pop ax
+
+	; moves 0x02 to ah register. Its the BIOS interrup service number for reading data from the disk 
+	mov ah, 02h
+	; Moves 3 to di register. Retry count 
+	mov di, 3
+
+
+.retry:
+	pusha					; save all general-purpose register values
+	stc						; sets the carry flags in the eflags register. Usually done to prepare the CPU for an operation that may modify the carry flag
+	int 13h					; calls BIOS interrupt for disk operations like read or writing
+	jnc .done               ; if carry flag is clear, it jumps to .done
+
+	; read failed
+	popa					; restores all general-purpose register values
+	call disk_reset			; resets disk. Clears all errors, prepares disk for another attempt
+
+	dec di 					; decrements the retry count
+	test di, di 			; tests the di to check if its 0 or not
+	jnz .retry              ; if di is not 0 then it retries again
+
+
+.fail:
+	jmp floppy_error
+
+
+.done:
+	popa
+
+	; restore registers modified
+	push ax
+	push bx
+	push cx
+	push dx
+	push di
+
+	ret
+
+
+;
+; Resets disk controllers
+; Paramteres:
+;	dl: drive number
+;
+disk_reset:
+	pusha
+	mov ah, 0
+	stc
+	int 13h
+	jc floppy_error
+	popa
+	ret
+
+
+
 
 msg_hello: db 'Hello world', ENDL, 0
+msg_read_failed: db 'Read from disk failed!', ENDL, 0
 
 times 510-($-$$) db 0
 dw 0AA55h
