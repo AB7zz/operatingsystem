@@ -54,6 +54,7 @@ puts:
 	; save registers we will modify
 	push si
 	push ax
+	push bx
 
 .loop:
 	lodsb					; loads next character in a string into AL register
@@ -67,6 +68,7 @@ puts:
 	jmp .loop
 	
 .done:
+	pop bx
 	pop ax
 	pop si
 	ret
@@ -95,7 +97,8 @@ main:
 
 	mov si, msg_hello
 	call puts
-	
+
+	cli
 	hlt
 
 
@@ -106,9 +109,6 @@ floppy_error:
 	mov si, msg_read_failed
 	call puts
 	jmp wait_key_and_reboot
-	hlt
-
-
 
 wait_key_and_reboot:
 	mov ah, 0
@@ -135,6 +135,9 @@ wait_key_and_reboot:
 ;	- dh: head
 ;
 lba_to_chs:
+	push ax
+	push dx
+	
 	xor dx, dx;								; dx = 0
 	div word [bdb_sectors_per_track]		; ax = LBA / SectorsPerTrack
 											; dx = LBA % SectorsPerTrack
@@ -207,11 +210,11 @@ disk_read:
 	popa
 
 	; restore registers modified
-	push ax
-	push bx
-	push cx
-	push dx
-	push di
+	pop di
+	pop dx
+	pop cx
+	pop bx
+	pop ax
 
 	ret
 
