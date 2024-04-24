@@ -1,7 +1,7 @@
 ; BIOS boots OS at address 7C00
 org 0x7C00
 
-; start in 16-bit mode
+; start in 16-bit mode/real mode
 bits 16
 
 
