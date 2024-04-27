@@ -1,5 +1,6 @@
 ASM=nasm
 CC = gcc
+
 SRC_DIR = src
 TOOLS_DIR = tools
 BUILD_DIR = build
@@ -27,6 +28,7 @@ $(BUILD_DIR)/main_floppy.img: bootloader kernel
 	# mcopy compies the kernel binary into the main_flooppy.img
 	mcopy -i $(BUILD_DIR)/main_floppy.img $(BUILD_DIR)/kernel.bin "::kernel.bin"
 	mcopy -i $(BUILD_DIR)/main_floppy.img test.txt "::test.txt"
+	echo "Floppy image build complete"
 
 
 
@@ -37,6 +39,7 @@ $(BUILD_DIR)/main_floppy.img: bootloader kernel
 bootloader: $(BUILD_DIR)/bootloader.bin
 $(BUILD_DIR)/bootloader.bin: always
 	$(ASM) $(SRC_DIR)/bootloader/boot.asm -f bin -o $(BUILD_DIR)/bootloader.bin
+	echo "Bootloader build complete"
 
 
 
@@ -47,6 +50,7 @@ $(BUILD_DIR)/bootloader.bin: always
 kernel: $(BUILD_DIR)/kernel.bin
 $(BUILD_DIR)/kernel.bin: always
 	$(ASM) $(SRC_DIR)/kernel/main.asm -f bin -o $(BUILD_DIR)/kernel.bin
+	echo "Kernel build complete"
 
 
 #
@@ -56,6 +60,7 @@ tools_fat: $(BUILD_DIR)/tools/fat
 $(BUILD_DIR)/tools/fat: always $(TOOLS_DIR)/fat/fat.c
 	mkdir -p $(BUILD_DIR)/tools
 	$(CC) -g -o $(BUILD_DIR)/tools/fat $(TOOLS_DIR)/fat/fat.c
+	echo "FAT12 build compelte"
 
 
 
